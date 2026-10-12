@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>1강. 채용공고 241건으로 대시보드와 공부 로드맵 만들기</title>
+  <link rel="stylesheet" href="assets/style.css?v=1">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html">Claude Code 실전 4강</a>
+      <nav>
+        <a href="index.html">강의 소개</a>
+        <a href="lesson1.html" aria-current="page">1강</a>
+        <a href="lesson2.html">2강</a>
+        <a href="lesson3.html">3강</a>
+        <a href="lesson4.html">4강</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <p class="eyebrow">1강 · 프로젝트 10.12(1)</p>
+    <h1>채용공고 241건을 모아 대시보드와 공부 로드맵 만들기</h1>
+    <p class="lead">원티드의 임베디드 개발자·하드웨어 엔지니어 공고를 전부 열어 보고 필요 요건을 정리하는 일. 사람이 하면 하루가 걸리지만, Claude Code에게 맡기면 한 시간 남짓이면 끝납니다.</p>
+
+    <ul class="meta">
+      <li>소요 시간: 약 1시간 10분</li>
+      <li>요청 횟수: 2번</li>
+      <li>결과물: 대시보드 1개, 보고서 1개</li>
+    </ul>
+
+    <div class="box goals">
+      <div class="box-title">학습 목표</div>
+      <ul>
+        <li>웹페이지를 긁는 대신 사이트 내부 API를 찾아 데이터를 모으는 방법을 압니다.</li>
+        <li>수집 → 분류 → 추출을 스크립트로 나누는 이유를 이해합니다.</li>
+        <li>같은 데이터로 질문만 바꿔 두 번째 결과물을 만드는 흐름을 익힙니다.</li>
+      </ul>
+    </div>
+
+    <div class="box toc">
+      <div class="box-title">목차</div>
+      <ol>
+        <li><a href="#s1">요청 1: 공고 정리 + 대시보드</a></li>
+        <li><a href="#s2">데이터 수집 파이프라인</a></li>
+        <li><a href="#s3">대시보드 만들기</a></li>
+        <li><a href="#s4">요청 2: 공부 로드맵 보고서</a></li>
+        <li><a href="#s5">트러블슈팅</a></li>
+        <li><a href="#s6">정리와 퀴즈</a></li>
+      </ol>
+    </div>
+
+    <h2 id="s1">1. 요청 1: 공고를 다 열어 보고 대시보드로</h2>
+    <p>첫 요청은 아주 짧았습니다. 원티드 채용 목록 URL 하나와 원하는 결과만 적었습니다.</p>
+    <div class="prompt"><p>https://www.wanted.co.kr/wdlist/518?…&amp;selected=658&amp;selected=672 여기에 있는 공고들 다 들어가서 필요요건들 정리해줘 그리고 보기 좋게 대시보드처럼 만들어서 보여줘</p></div>
+    <p>URL의 <code>selected=658</code>, <code>selected=672</code>는 직무 필터입니다. Claude는 원티드 페이지 HTML에서 이 숫자가 각각 <strong>임베디드 개발자</strong>, <strong>하드웨어 엔지니어</strong>라는 걸 직접 찾아냈습니다.</p>
+
+    <div class="box tip">
+      <div class="box-title">팁: 프롬프트는 "무엇을"과 "어떤 모양으로"만</div>
+      <p>어떻게 수집할지까지 지시할 필요는 없습니다. 대상(URL)과 원하는 결과물(요건 정리 + 대시보드)만 분명하면 방법은 Claude가 고릅니다.</p>
+    </div>
+
+    <h2 id="s2">2. 데이터 수집 파이프라인</h2>
+    <p>Claude는 화면을 하나씩 긁는 대신, 원티드 웹페이지가 내부적으로 부르는 JSON API를 먼저 찾았습니다. API로 받으면 빠르고, HTML 구조가 바뀌어도 덜 깨집니다.</p>
+    <pre><code># 목록 (100건씩 페이지 넘김)
+/api/v4/jobs?tag_type_ids=658&amp;tag_type_ids=672&amp;limit=100&amp;offset=N
+
+# 공고 상세
+/api/v4/jobs/{id}</code></pre>
+
+    <p>그다음 작업을 세 개의 스크립트로 나눴습니다.</p>
+    <table>
+      <thead><tr><th>스크립트</th><th>하는 일</th><th>결과</th></tr></thead>
+      <tbody>
+        <tr><td><code>fetch.py</code></td><td>목록과 상세를 <code>ThreadPoolExecutor</code>로 병렬 수집하고, 실패하면 재시도</td><td>목록 241건, 상세 241건</td></tr>
+        <tr><td><code>cats.py</code></td><td>직무별 목록을 따로 받아 공고마다 직무 표시</td><td>임베디드 179, 하드웨어 103 (41건은 양쪽)</td></tr>
+        <tr><td><code>extract.py</code></td><td>정규식으로 기술 키워드 87종, 경력, 학력 추출</td><td>자격요건에 있으면 '필수', 우대사항에만 있으면 '우대'</td></tr>
+      </tbody>
+    </table>
+
+    <div class="box warn">
+      <div class="box-title">주의: 자동 추출은 꼭 샘플로 검증하세요</div>
+      <p>"C" 같은 한 글자 키워드는 다른 단어에 섞여 잘못 잡히기 쉽습니다. Claude는 실제 매칭 샘플을 뽑아 오탐이 없는지 확인했고, 남은 한계는 결과물에 적어 두었습니다.</p>
+    </div>
+
+    <h2 id="s3">3. 대시보드 만들기</h2>
+    <p>차트를 그리기 전에 Claude는 <code>dataviz</code> 스킬부터 불러왔습니다. 차트 형태, 색, 레이아웃 원칙이 담긴 스킬이라 결과물의 일관성이 좋아집니다.</p>
+    <ol class="steps">
+      <li>Artifact 도구로 Dashboard 타입 페이지를 만듭니다.</li>
+      <li><code>jobs.json</code>, <code>job_skills.json</code>을 페이지 데이터로 올립니다.</li>
+      <li>필터와 차트를 연결합니다.</li>
+    </ol>
+    <p>완성된 대시보드는 다음과 같이 구성됐습니다.</p>
+    <ul>
+      <li><strong>직무 필터</strong>: 임베디드 / 하드웨어 / 전체</li>
+      <li><strong>핵심 지표</strong>: 신입 가능 비율, 경력 중간값 등</li>
+      <li><strong>기술 Top 20</strong>: 막대를 누르면 아래 공고 목록이 그 기술로 걸러짐</li>
+      <li><strong>분포 차트</strong>와 <strong>검색 가능한 공고 목록</strong>(원문 링크 포함), CSV 내려받기</li>
+    </ul>
+
+    <h2 id="s4">4. 요청 2: 그래서 뭘 공부해야 할까?</h2>
+    <div class="prompt"><p>내가 이런 직군에 취직하고 싶은데 뭐부터 공부할까? 이걸 보고서형태로 줘봐 시각화해서도 보여줘</p></div>
+    <p>Claude는 새로 데이터를 모으지 않고, 이미 받은 241건을 <strong>경력 2년 이하 공고 73건</strong>으로 좁혀 다시 집계했습니다. 신입·주니어 공고에서는 C++ 45%, C 40%가 가장 많이 요구됐습니다.</p>
+    <p>보고서는 <code>docs</code> 스킬로 만들었습니다. 목차만 있는 뼈대를 먼저 띄우고 섹션을 하나씩 채웠기 때문에, 사용자는 문서가 채워지는 과정을 실시간으로 볼 수 있었습니다.</p>
+    <ul>
+      <li>시각화 3개: 신입 공고 기술 Top 15, 임베디드 vs 하드웨어 비교, 6~10개월 4단계 로드맵</li>
+      <li>포트폴리오 추천 표: STM32 센서 로거, FreeRTOS 모터 제어기, 라즈베리파이 드라이버, KiCad 보드</li>
+      <li>우대사항으로 차별화하기: 양산 경험, 영어, EMI/EMC, RTOS, BMS</li>
+    </ul>
+    <p>마지막으로 Claude는 문서에 댓글을 남겨 "C와 회로 기초가 처음인 사람을 가정했는데 맞는지" 확인을 요청했습니다. 가정을 숨기지 않고 드러낸 좋은 예입니다.</p>
+
+    <h2 id="s5">5. 트러블슈팅</h2>
+    <table>
+      <thead><tr><th>증상</th><th>원인</th><th>해결</th></tr></thead>
+      <tbody>
+        <tr><td><code>UnicodeEncodeError: 'cp949'</code></td><td>한글 Windows 콘솔 기본 인코딩</td><td>코드 안에서 <code>sys.stdout.reconfigure(encoding='utf-8')</code>. <code>python -I</code> 모드에선 <code>PYTHONIOENCODING</code>이 무시됩니다.</td></tr>
+        <tr><td>heredoc으로 긴 스크립트 작성 시 <code>unexpected EOF</code></td><td>따옴표가 섞인 긴 본문의 셸 파싱 문제</td><td>Write 도구로 파일을 직접 생성</td></tr>
+        <tr><td>직무 분류 API가 404</td><td>해당 엔드포인트 없음</td><td>페이지 HTML을 grep해서 658·672의 이름 확인</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s6">6. 정리</h2>
+    <div class="box goals">
+      <div class="box-title">핵심 요약</div>
+      <ol>
+        <li>스크래핑보다 API를 먼저 찾으면 빠르고 정확합니다.</li>
+        <li>수집 · 분류 · 추출을 나누면 다시 돌리고 검증하기 쉽습니다.</li>
+        <li>정규식 추출은 샘플로 검증하고 한계를 기록합니다.</li>
+        <li>같은 데이터로 질문만 바꿔 두 번째 결과물을 만듭니다.</li>
+      </ol>
+    </div>
+
+    <h3>확인 퀴즈</h3>
+    <details>
+      <summary>Q1. 공고 241건을 HTML이 아닌 API로 수집하면 좋은 점은?</summary>
+      <p>구조화된 JSON이라 파싱이 쉽고, 화면 디자인이 바뀌어도 덜 깨지며, 병렬 요청으로 빠르게 모을 수 있습니다.</p>
+    </details>
+    <details>
+      <summary>Q2. 키워드가 '필수'인지 '우대'인지는 어떻게 구분했나요?</summary>
+      <p>자격요건 본문에 나오면 필수, 우대사항에만 나오면 우대로 셌습니다.</p>
+    </details>
+    <details>
+      <summary>Q3. 보고서를 만들 때 데이터를 새로 수집했나요?</summary>
+      <p>아니요. 기존 241건에서 경력 2년 이하 73건만 골라 다시 집계했습니다.</p>
+    </details>
+
+    <div class="box tip">
+      <div class="box-title">실습 과제</div>
+      <p>관심 있는 다른 직군(예: 백엔드, 데이터 분석)의 채용 목록 URL로 같은 요청을 해 보세요. 기술 Top 10이 어떻게 다른지 비교해 보면 재미있습니다.</p>
+    </div>
+
+    <div class="pager">
+      <a href="index.html"><small>← 이전</small>강의 소개</a>
+      <a class="next" href="lesson2.html"><small>다음 →</small>2강. 전자전기 PPT 자동 생성</a>
+    </div>
+  </main>
+
+  <footer>Claude Code 실습 기록(2026-10-12)을 바탕으로 정리했습니다.</footer>
+</body>
+</html>

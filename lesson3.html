@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>3강. 오행 사주 웹앱을 기획부터 GitHub Pages 배포까지</title>
+  <link rel="stylesheet" href="assets/style.css?v=1">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html">Claude Code 실전 4강</a>
+      <nav>
+        <a href="index.html">강의 소개</a>
+        <a href="lesson1.html">1강</a>
+        <a href="lesson2.html">2강</a>
+        <a href="lesson3.html" aria-current="page">3강</a>
+        <a href="lesson4.html">4강</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <p class="eyebrow">3강 · 프로젝트 10.12(3)</p>
+    <h1>오행 사주 웹앱을 기획부터 GitHub Pages 배포까지</h1>
+    <p class="lead">"계획 세워줘"로 시작해 시장 조사, 구현, 배포, 기능 추가, 문서화까지. 웹 서비스 하나를 처음부터 끝까지 완성하는 전체 흐름을 따라갑니다.</p>
+
+    <ul class="meta">
+      <li>소요 시간: 약 2시간</li>
+      <li>요청 횟수: 7번</li>
+      <li>커밋 5개</li>
+      <li>결과물: <a href="https://pakuyama.github.io/ohaeng-saju/">배포된 웹앱</a></li>
+    </ul>
+
+    <div class="box goals">
+      <div class="box-title">학습 목표</div>
+      <ul>
+        <li>계획서를 먼저 쓰고 웹 조사로 다듬는 방법을 익힙니다.</li>
+        <li>API 키를 <code>.env</code>로 안전하게 다루는 법을 압니다.</li>
+        <li><code>gh</code> CLI만으로 저장소 생성과 GitHub Pages 배포를 합니다.</li>
+        <li>배포 후 캐시 문제를 찾아내고 해결하는 법을 배웁니다.</li>
+      </ul>
+    </div>
+
+    <div class="box toc">
+      <div class="box-title">목차</div>
+      <ol>
+        <li><a href="#s1">기획: 계획 → 조사 → 요구사항 수정</a></li>
+        <li><a href="#s2">구현: 빌드 없는 정적 웹앱</a></li>
+        <li><a href="#s3">배포: gh CLI 세 줄</a></li>
+        <li><a href="#s4">기능 추가와 캐시 문제</a></li>
+        <li><a href="#s5">트러블슈팅</a></li>
+        <li><a href="#s6">정리와 퀴즈</a></li>
+      </ol>
+    </div>
+
+    <h2 id="s1">1. 기획: 계획 → 조사 → 요구사항 수정</h2>
+    <p>세 번의 짧은 요청으로 계획서가 점점 단단해졌습니다.</p>
+    <div class="prompt"><p>사주 운세 서비스를 만들려고 해 계획을 세워줄래</p></div>
+    <p>Claude는 폴더가 비어 있는지 확인한 뒤 MVP 계획을 세웠습니다. 만세력에서 흔히 틀리는 부분(입춘·절입 시각, 진태양시, 서머타임, 야자시)도 미리 짚었습니다.</p>
+    <div class="prompt"><p>.env 파일에 firecrawl api키 넣어놨어 이걸 활용해서 계획서 다시써줘</p></div>
+    <p>Firecrawl API로 웹 검색 5건, 페이지 스크랩 4건을 해서 시장 규모, 사용자 관심 주제(재물운 58.7%), 경쟁 서비스를 계획서 v2에 반영했습니다.</p>
+
+    <div class="box warn">
+      <div class="box-title">주의: API 키는 화면에 찍지 않는다</div>
+      <p>Claude는 <code>.env</code> 내용을 확인할 때도 값을 가렸습니다.</p>
+      <pre><code>sed 's/=.*/=&lt;hidden&gt;/' .env</code></pre>
+      <p>키 이름만 확인하고 값은 출력하지 않는 습관을 들이세요.</p>
+    </div>
+
+    <div class="prompt"><p>결과를 알려줄때 신, 정, 경, 병 이런거 말고 그냥 오행만 띄워주고 이에따른 성격분석과 연도별 운세를 재물, 건강, 연애로 나눠서 올리자</p></div>
+    <p>여기서 핵심 설계 원칙이 정해졌습니다. <strong>계산은 정확하게, 화면은 쉽게.</strong> 내부에서는 천간·지지를 모두 계산하되, 사용자에게는 오행(목·화·토·금·수)과 쉬운 문장만 보여 줍니다.</p>
+
+    <h2 id="s2">2. 구현: 빌드 없는 정적 웹앱</h2>
+    <div class="prompt"><p>깃cli로 배포까지 해줘</p></div>
+    <p>Claude는 먼저 환경부터 점검했습니다(<code>git</code>, <code>gh auth status</code>, <code>node</code>). PC에 Node.js가 없었기 때문에 <strong>빌드 과정이 필요 없는 순수 HTML/CSS/JS</strong>로 결정했습니다.</p>
+    <pre><code>index.html          화면
+css/style.css       스타일
+js/saju.js          만세력 계산 (사주 → 오행)
+js/interpret.js     성격·연도별 운세 해석
+js/app.js           입력·렌더링·공유
+vendor/lunar.js     lunar-javascript (MIT)</code></pre>
+    <p>확인은 로컬 서버와 브라우저 자동화로 했습니다.</p>
+    <pre><code>python -m http.server 8000</code></pre>
+    <p>Claude in Chrome으로 페이지를 열어 스크린샷, DOM, 콘솔 오류를 확인했습니다.</p>
+
+    <h2 id="s3">3. 배포: gh CLI 세 줄</h2>
+    <ol class="steps">
+      <li><strong>비밀 파일 제외</strong>: <code>.gitignore</code>에 <code>.env</code>를 넣고 첫 커밋을 합니다.</li>
+      <li><strong>저장소 생성과 푸시</strong>
+        <pre><code>gh repo create ohaeng-saju --public --source=. --remote=origin --push</code></pre></li>
+      <li><strong>Pages 켜기</strong>
+        <pre><code>gh api -X POST repos/&lt;사용자&gt;/ohaeng-saju/pages \
+  -f "source[branch]=main" -f "source[path]=/"</code></pre></li>
+      <li><strong>빌드 완료 대기</strong>: 상태가 <code>built</code>가 될 때까지 확인합니다.
+        <pre><code>gh api repos/&lt;사용자&gt;/ohaeng-saju/pages/builds/latest --jq .status</code></pre></li>
+      <li><strong>배포 검증</strong>: 사이트는 200, <code>/.env</code>는 404인지 <code>curl</code>로 확인합니다.</li>
+    </ol>
+
+    <div class="box tip">
+      <div class="box-title">팁: 무료 GitHub Pages는 공개 저장소에서만</div>
+      <p>무료 계정에서 Pages를 쓰려면 저장소가 public이어야 합니다. 그래서 비밀 파일 제외와 <code>/.env</code> 404 확인이 더 중요합니다.</p>
+    </div>
+
+    <h2 id="s4">4. 기능 추가와 캐시 문제</h2>
+    <div class="prompt"><p>과거에도 무슨일이 있었다도 추가해 볼래?</p></div>
+    <p>해석 로직을 "판단 근거 코드 → 현재형/과거형 문장" 구조로 리팩터링해서, 같은 규칙으로 <strong>지난 10년 돌아보기</strong>를 만들었습니다.</p>
+    <div class="prompt"><p>예상 재미로 보는 mbti도 추가해줘 재미이기 때문에 아닐수도 있다는 안내문도 추가해줘</p></div>
+    <p>처음 만든 MBTI 추정은 ISTJ가 23%로 쏠렸습니다. Claude는 95,040개 조합을 돌려 분포를 확인했고, E/I를 음양 비율로 바꾸고 오행별 축 배치를 다시 해서 16개 유형이 약 2~12%로 고르게 퍼지게 했습니다.</p>
+
+    <h3>배포했는데 MBTI 카드가 비어 있다?</h3>
+    <p>MBTI 기능을 배포한 직후 카드가 빈 칸으로 보였습니다. <code>curl -sI</code>로 헤더를 보니 GitHub Pages가 CSS/JS를 <strong>10분간 캐시</strong>하고 있었습니다. 새 HTML이 이전 JS와 섞여 불러와진 것입니다.</p>
+    <pre><code>&lt;link rel="stylesheet" href="css/style.css?v=4"&gt;
+&lt;script src="js/app.js?v=4"&gt;&lt;/script&gt;</code></pre>
+    <p>파일 주소 뒤에 버전 쿼리 <code>?v=</code>를 붙여 해결했고, "CSS/JS를 고치면 숫자를 올릴 것"이라는 규칙을 README에 남겼습니다.</p>
+
+    <div class="prompt"><p>지금까지 한 것을 계획서에 써줘 이미 써져있다면 안써도 돼</p></div>
+    <p>마지막으로 진행 내역과 다음 단계를 <code>PLAN.md</code>로 정리해 커밋했습니다.</p>
+
+    <h2 id="s5">5. 트러블슈팅</h2>
+    <table>
+      <thead><tr><th>증상</th><th>해결</th></tr></thead>
+      <tbody>
+        <tr><td>배포 후 새 기능이 빈 칸</td><td>CSS/JS 주소에 <code>?v=</code> 버전 쿼리</td></tr>
+        <tr><td>Firecrawl 한글 검색어 깨짐</td><td>curl 대신 Python으로 UTF-8 요청 본문 작성</td></tr>
+        <tr><td>양력인데 윤달 체크박스가 보임</td><td>CSS가 <code>hidden</code> 속성을 덮어쓰던 부분 수정</td></tr>
+        <tr><td>재물 2점인 해에 긍정 문장이 요약으로 뽑힘</td><td>점수 방향과 맞는 근거만 고르도록 수정</td></tr>
+        <tr><td>Chrome 스크린샷 시간 초과</td><td>DOM과 콘솔로 대신 검증하고, 화면 확인은 사용자에게 요청</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s6">6. 정리</h2>
+    <div class="box goals">
+      <div class="box-title">핵심 요약</div>
+      <ol>
+        <li>계획 → 조사 → 요구사항 수정 → 구현 순서로 가면 결과물이 흔들리지 않습니다.</li>
+        <li>API 키는 <code>.env</code> + <code>.gitignore</code>로 관리하고, 배포 후 <code>/.env</code>가 404인지 확인합니다.</li>
+        <li><code>gh repo create --push</code>와 <code>gh api .../pages</code>로 배포가 끝납니다.</li>
+        <li>"배포됨"을 믿지 말고 실제 사이트를 확인하세요. 캐시 문제는 확인 과정에서 발견됐습니다.</li>
+        <li>정적 사이트는 <code>?v=</code> 버전 쿼리로 캐시를 무효화합니다.</li>
+      </ol>
+    </div>
+
+    <h3>확인 퀴즈</h3>
+    <details>
+      <summary>Q1. Node.js 없이 웹앱을 만든 방법은?</summary>
+      <p>빌드 도구가 필요 없는 순수 HTML/CSS/JS로 만들고, 라이브러리는 <code>vendor/</code>에 파일로 넣었습니다.</p>
+    </details>
+    <details>
+      <summary>Q2. 배포 직후 새 기능이 안 보였던 이유는?</summary>
+      <p>GitHub Pages가 CSS/JS를 10분간 캐시해서, 새 HTML과 이전 JS가 섞여 불러와졌기 때문입니다.</p>
+    </details>
+    <details>
+      <summary>Q3. MBTI 결과가 한 유형으로 쏠리는지 어떻게 확인했나요?</summary>
+      <p>가능한 입력 조합 95,040개를 모두 돌려 유형별 비율을 확인했습니다.</p>
+    </details>
+
+    <div class="box tip">
+      <div class="box-title">실습 과제</div>
+      <p>여러분의 아이디어로 정적 웹앱을 만들고 "깃cli로 배포까지 해줘"라고 요청해 보세요. 배포 후에는 사이트 주소와 <code>/.env</code> 주소를 직접 열어 확인해 보세요.</p>
+    </div>
+
+    <div class="pager">
+      <a href="lesson2.html"><small>← 이전</small>2강. 전자전기 PPT 자동 생성</a>
+      <a class="next" href="lesson4.html"><small>다음 →</small>4강. 스킬 골라 설치하기</a>
+    </div>
+  </main>
+
+  <footer>Claude Code 실습 기록(2026-10-12)을 바탕으로 정리했습니다. 사주 결과는 재미와 참고용입니다.</footer>
+</body>
+</html>
