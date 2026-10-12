@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>4강. 외부 스킬 저장소에서 필요한 스킬만 프로젝트에 설치하기</title>
+  <title>4강. AI로 한글(HWP) 파일을 수정하는 스킬 설치하기</title>
   <link rel="stylesheet" href="assets/style.css?v=1">
 </head>
 <body>
@@ -22,31 +22,66 @@
 
   <main>
     <p class="eyebrow">4강 · 프로젝트 10.12(4)</p>
-    <h1>외부 스킬 저장소에서 필요한 스킬만 프로젝트에 설치하기</h1>
-    <p class="lead">스킬은 Claude Code에 새 능력을 더해 주는 확장 묶음입니다. 한국 서비스용 스킬 130여 개가 담긴 <a href="https://github.com/NomaDamas/k-skill">k-skill</a>에서 개발자·문서 도구 4개만 골라 이 프로젝트에만 설치해 봅니다.</p>
+    <h1>AI로 한글(HWP) 파일을 수정하는 스킬 설치하기</h1>
+    <p class="lead">공문서, 신청서, 양식은 대부분 한글(.hwp) 파일입니다. 그런데 Claude는 기본 상태로는 HWP를 읽거나 고칠 수 없습니다. 이번 강의에서는 <a href="https://github.com/NomaDamas/k-skill">k-skill</a> 저장소에서 HWP 관련 스킬을 골라 설치해 "이 한글 파일 고쳐줘"가 통하는 프로젝트를 만듭니다.</p>
 
     <ul class="meta">
       <li>소요 시간: 약 20분</li>
-      <li>최종 설치: 스킬 4개</li>
+      <li>설치 스킬: 4개 (HWP 3개 + WHOIS 1개)</li>
       <li>범위: 프로젝트 스코프</li>
+      <li>필요: Node.js 18+</li>
     </ul>
 
     <div class="box goals">
       <div class="box-title">학습 목표</div>
       <ul>
-        <li>스킬이 무엇이고 어디에 설치되는지 압니다.</li>
-        <li>전역(<code>-g</code>) 설치와 프로젝트 스코프 설치의 차이를 이해합니다.</li>
-        <li>필요한 스킬만 남기고 정리하는 방법을 익힙니다.</li>
+        <li>왜 HWP 수정에 스킬이 필요한지 이해합니다.</li>
+        <li>HWP 스킬 3개(읽기·편집·디버깅)의 역할을 구분합니다.</li>
+        <li>스킬을 이 프로젝트에만 설치하고, 필요 없는 스킬을 정리합니다.</li>
+        <li>설치한 스킬로 한글 파일을 수정하는 프롬프트를 써 봅니다.</li>
       </ul>
     </div>
 
-    <h2>1. 스킬이란?</h2>
-    <p>스킬은 <code>SKILL.md</code> 파일이 들어 있는 폴더입니다. 파일 맨 위에 이름(<code>name</code>)과 설명(<code>description</code>)이 있고, Claude는 이 설명을 보고 상황에 맞는 스킬을 골라 씁니다.</p>
+    <div class="box toc">
+      <div class="box-title">목차</div>
+      <ol>
+        <li><a href="#s1">왜 스킬이 필요한가</a></li>
+        <li><a href="#s2">HWP 스킬 3총사</a></li>
+        <li><a href="#s3">프로젝트에 설치하기</a></li>
+        <li><a href="#s4">필요 없는 스킬 정리하기</a></li>
+        <li><a href="#s5">실전: 한글 파일 고치기</a></li>
+        <li><a href="#s6">정리와 퀴즈</a></li>
+      </ol>
+    </div>
+
+    <h2 id="s1">1. 왜 스킬이 필요한가</h2>
+    <p>HWP는 한컴오피스 전용 바이너리 형식이라, 텍스트 파일처럼 열어서 고칠 수 없습니다. Claude가 한글 파일을 다루려면 <strong>HWP를 읽고 쓰는 도구</strong>와 <strong>그 도구를 언제, 어떻게 쓰는지에 대한 설명서</strong>가 필요합니다. 이 설명서 묶음이 스킬입니다.</p>
+    <p>스킬은 <code>SKILL.md</code> 파일이 들어 있는 폴더입니다. 맨 위의 이름과 설명을 보고 Claude가 상황에 맞는 스킬을 골라 씁니다.</p>
     <pre><code>---
-name: hwp
-description: Use kordoc for agent-native HWP/HWPX document parsing, ...
----
-(사용법, 명령어, 주의사항 ...)</code></pre>
+name: rhwp-edit
+description: Edit HWP documents — insert/delete text, replace-all,
+             create tables, set cell text — with the k-skill-rhwp CLI ...
+---</code></pre>
+
+    <h2 id="s2">2. HWP 스킬 3총사</h2>
+    <p>k-skill의 "🛠️ 개발자·문서 도구" 묶음에는 HWP 스킬이 세 개 있습니다. 역할이 겹치지 않게 나뉘어 있어서, Claude가 작업에 따라 알맞은 것을 고릅니다.</p>
+    <table>
+      <thead><tr><th>스킬</th><th>역할</th><th>이럴 때</th><th>엔진</th></tr></thead>
+      <tbody>
+        <tr><td><code>hwp</code></td><td>읽기·변환</td><td>HWP 내용을 Markdown/JSON으로 뽑기, 두 문서 비교, 양식 필드 추출, Markdown → HWPX 생성</td><td>kordoc</td></tr>
+        <tr><td><code>rhwp-edit</code></td><td><strong>편집</strong></td><td>본문에 글 넣기·지우기, 서식 유지한 채 일괄 치환, 표 만들기, 표 셀 채우기</td><td>k-skill-rhwp (@rhwp/core WASM)</td></tr>
+        <tr><td><code>rhwp-advanced</code></td><td>고급 진단</td><td>레이아웃 깨짐 디버깅, 내부 구조 덤프, 버전 비교, 썸네일, 배포용 문서 잠금 해제</td><td>rhwp Rust CLI</td></tr>
+      </tbody>
+    </table>
+    <p>같은 묶음에 있던 <code>kr-whois-lookup</code>(<code>.kr</code> 도메인 등록정보 조회)도 함께 설치했지만, 이번 강의의 주인공은 HWP 스킬 세 개입니다.</p>
+
+    <div class="box tip">
+      <div class="box-title">팁: 읽기는 hwp, 고치기는 rhwp-edit</div>
+      <p>"이 문서 요약해줘", "양식에 뭘 채워야 해?"는 <code>hwp</code>가, "날짜를 바꿔줘", "표에 이름 채워줘"는 <code>rhwp-edit</code>가 맡습니다. 보통은 hwp로 내용을 파악한 뒤 rhwp-edit로 고치는 순서가 됩니다.</p>
+    </div>
+
+    <h2 id="s3">3. 프로젝트에 설치하기</h2>
+    <div class="prompt"><p>https://github.com/NomaDamas/k-skill 여기서 개발자·문서 도구 스킬들만 내 프로젝트 스코프로 설치해줘</p></div>
 
     <table>
       <thead><tr><th>설치 범위</th><th>위치</th><th>적용 대상</th></tr></thead>
@@ -55,23 +90,8 @@ description: Use kordoc for agent-native HWP/HWPX document parsing, ...
         <tr><td>프로젝트</td><td><code>&lt;프로젝트&gt;/.claude/skills/</code></td><td>그 폴더에서 연 세션만</td></tr>
       </tbody>
     </table>
-
-    <h2>2. 요청과 스킬 고르기</h2>
-    <div class="prompt"><p>https://github.com/NomaDamas/k-skill 여기서 개발자·문서 도구 스킬들만 내 프로젝트 스코프로 설치해줘</p></div>
-    <p>Claude는 저장소를 내려받아 README의 "🛠️ 개발자·문서 도구" 표에서 대상 스킬을 찾았습니다.</p>
-    <table>
-      <thead><tr><th>스킬</th><th>용도</th></tr></thead>
-      <tbody>
-        <tr><td><code>hwp</code></td><td>HWP/HWPX를 Markdown/JSON으로 변환, 문서 비교, 양식 필드 추출</td></tr>
-        <tr><td><code>rhwp-edit</code></td><td>HWP 본문 텍스트 수정, 표 생성, 셀 편집</td></tr>
-        <tr><td><code>rhwp-advanced</code></td><td>HWP 레이아웃 디버깅, 내부 구조 덤프, 썸네일 추출</td></tr>
-        <tr><td><code>kr-whois-lookup</code></td><td><code>.kr</code>/<code>.한국</code> 도메인, IP 등록정보 조회</td></tr>
-      </tbody>
-    </table>
-
-    <h2>3. 설치 방법</h2>
-    <p>공식 설치 명령은 <code>npx skills</code>입니다. README 예시에는 전역 설치용 <code>-g</code>가 붙어 있으니, <strong>프로젝트에 설치하려면 <code>-g</code>를 빼고</strong> 프로젝트 폴더에서 실행합니다.</p>
-    <pre><code># 프로젝트 폴더에서, 필요한 스킬만
+    <p>한글 문서 작업용 폴더에서만 HWP 스킬이 켜지도록 프로젝트 스코프를 골랐습니다. 공식 설치 명령은 <code>npx skills</code>이고, README 예시의 <code>-g</code>를 빼면 프로젝트에 설치됩니다.</p>
+    <pre><code># 한글 문서 작업 폴더에서
 npx --yes skills add NomaDamas/k-skill --skill hwp
 npx --yes skills add NomaDamas/k-skill --skill rhwp-edit
 npx --yes skills add NomaDamas/k-skill --skill rhwp-advanced
@@ -79,10 +99,10 @@ npx --yes skills add NomaDamas/k-skill --skill kr-whois-lookup</code></pre>
 
     <div class="box warn">
       <div class="box-title">실제로 있었던 일: Node.js가 없었다</div>
-      <p>처음 세션에서는 <code>npx</code>를 찾을 수 없어서, Claude는 스킬 폴더를 <code>.claude/skills/</code>에 직접 복사하는 수동 설치로 우회했습니다. 이후 다른 세션에서 <code>winget install OpenJS.NodeJS.LTS</code>로 Node.js를 설치하고 <code>--all</code>로 전체를 설치하는 바람에 131개가 모두 들어왔습니다.</p>
+      <p>처음에는 <code>npx</code>가 없어서 Claude가 스킬 폴더를 <code>.claude/skills/</code>에 직접 복사하는 수동 설치로 우회했습니다. 하지만 HWP 스킬은 실행할 때 <code>npx</code>로 kordoc, k-skill-rhwp를 불러오기 때문에 <strong>Node.js가 꼭 필요합니다.</strong> 이후 <code>winget install OpenJS.NodeJS.LTS</code>로 Node.js를 설치했고, 이때 <code>--all</code>로 실행하는 바람에 131개 스킬이 모두 설치됐습니다.</p>
     </div>
 
-    <h2>4. 필요 없는 스킬 정리하기</h2>
+    <h2 id="s4">4. 필요 없는 스킬 정리하기</h2>
     <div class="prompt"><p>나머지 지워줘</p></div>
     <p>삭제하기 전에 Claude는 설치 구조부터 확인했습니다. <code>npx skills</code>는 한 곳에만 설치하지 않았습니다.</p>
     <pre><code>.agents/skills/       스킬 원본
@@ -97,7 +117,7 @@ skills-lock.json      설치 목록과 해시</code></pre>
 
     <div class="box tip">
       <div class="box-title">팁: 스킬은 많을수록 좋은 게 아니다</div>
-      <p>스킬이 많으면 Claude가 매번 읽어야 할 설명이 늘고, 비슷한 스킬 중 엉뚱한 것을 고를 가능성도 커집니다. 프로젝트에 필요한 것만 두세요. k-skill에는 사용 통계로 안 쓰는 스킬을 찾아주는 <code>k-skill-cleaner</code>도 있습니다.</p>
+      <p>맛집, 주식, 버스 예매 스킬이 함께 있으면 Claude가 매번 읽어야 할 설명이 늘고, 엉뚱한 스킬을 고를 가능성도 커집니다. 한글 문서 작업 폴더에는 문서 스킬만 두세요.</p>
     </div>
 
     <div class="box warn">
@@ -105,30 +125,72 @@ skills-lock.json      설치 목록과 해시</code></pre>
       <p>131개 설치를 처음 발견했을 때 Claude는 바로 지우지 않았습니다. 사용자가 직접 설치한 파일이었기 때문에 먼저 상황을 보고하고 "나머지 지워줘"라는 확인을 받은 뒤에 삭제했습니다.</p>
     </div>
 
-    <h2>5. 정리</h2>
+    <h2 id="s5">5. 실전: 한글 파일 고치기</h2>
+    <p>설치를 마쳤으면 새 세션을 열고, 고칠 HWP 파일을 프로젝트 폴더에 넣은 뒤 평소 말투로 요청하면 됩니다.</p>
+
+    <h3>이렇게 요청해 보세요</h3>
+    <div class="prompt"><p>신청서.hwp 내용을 읽고 어떤 항목을 채워야 하는지 정리해줘</p></div>
+    <div class="prompt"><p>신청서.hwp에서 서식은 그대로 두고 2025를 전부 2026으로 바꿔줘</p></div>
+    <div class="prompt"><p>신청서.hwp 첫 번째 표의 대표자 칸에 '홍길동'을 넣어줘</p></div>
+    <div class="prompt"><p>보고서.hwp 맨 앞에 제목 한 줄 넣고, 3행 4열짜리 빈 표를 추가해줘</p></div>
+
+    <h3>Claude가 내부에서 하는 일</h3>
+    <p><code>rhwp-edit</code> 스킬은 대략 이런 순서로 동작합니다. 직접 명령을 칠 필요는 없지만, 흐름을 알아 두면 결과를 확인하기 쉽습니다.</p>
+    <ol class="steps">
+      <li><strong>구조 파악</strong>: 섹션, 문단 수와 길이를 확인합니다.
+        <pre><code>npx k-skill-rhwp info 신청서.hwp</code></pre></li>
+      <li><strong>위치 찾기</strong>: 바꿀 글자가 어디 있는지 검색합니다.
+        <pre><code>npx k-skill-rhwp search 신청서.hwp --query 2025</code></pre></li>
+      <li><strong>편집</strong>: 결과는 항상 <strong>새 파일</strong>로 저장합니다. 원본은 덮어쓰지 않습니다.
+        <pre><code>npx k-skill-rhwp replace-all 신청서.hwp ./out/신청서_2026.hwp \
+  --query 2025 --replacement 2026</code></pre></li>
+      <li><strong>확인</strong>: 페이지를 SVG로 렌더하거나 <code>hwp</code> 스킬로 다시 읽어 바뀐 내용을 검증합니다.
+        <pre><code>npx k-skill-rhwp render ./out/신청서_2026.hwp --page 1 --format svg</code></pre></li>
+    </ol>
+
+    <div class="box warn">
+      <div class="box-title">알아 둘 한계</div>
+      <ul>
+        <li><strong>저장 형식</strong>: <code>.hwpx</code>를 넣어도 편집 결과는 <code>.hwp</code>(HWP 5.x)로 저장됩니다. HWPX가 꼭 필요하면 <code>hwp</code> 스킬의 Markdown → HWPX 변환을 씁니다.</li>
+        <li><strong>일괄 치환 범위</strong>: <code>replace-all</code>은 본문 문단만 바꿉니다. 표 안의 글자는 셀을 지정해 <code>set-cell-text</code>로 고칩니다.</li>
+        <li><strong>한컴오피스 조작은 안 됨</strong>: 파일 형식을 직접 다루는 도구라서, 한글 프로그램을 띄워 클릭하거나 보안 모듈을 통과하는 일은 하지 않습니다.</li>
+        <li><strong>최종 확인은 사람이</strong>: 제출용 문서는 한컴오피스로 열어 서식이 의도대로인지 꼭 확인하세요.</li>
+      </ul>
+    </div>
+
+    <h2 id="s6">6. 정리</h2>
     <div class="box goals">
       <div class="box-title">핵심 요약</div>
       <ol>
-        <li>스킬은 <code>SKILL.md</code>가 든 폴더이고, 설명을 보고 Claude가 골라 씁니다.</li>
-        <li><code>-g</code>를 빼면 프로젝트 스코프로 설치됩니다.</li>
+        <li>Claude가 HWP를 다루려면 스킬이 필요합니다. 읽기는 <code>hwp</code>, 편집은 <code>rhwp-edit</code>, 진단은 <code>rhwp-advanced</code>입니다.</li>
+        <li><code>-g</code>를 빼면 프로젝트 스코프로 설치됩니다. 한글 작업 폴더에만 설치하세요.</li>
+        <li>HWP 스킬은 <code>npx</code>로 동작하므로 Node.js 18 이상이 필요합니다.</li>
         <li>설치 도구가 여러 위치와 잠금 파일을 만들 수 있으니, 정리할 때는 모두 확인합니다.</li>
-        <li>되돌리기 어려운 삭제는 확인을 받고 진행합니다.</li>
+        <li>편집 결과는 항상 새 파일로 저장되고, 제출 전 최종 확인은 사람이 합니다.</li>
       </ol>
     </div>
 
     <h3>확인 퀴즈</h3>
     <details>
-      <summary>Q1. 전역 설치와 프로젝트 설치를 가르는 옵션은?</summary>
+      <summary>Q1. "보고서.hwp 내용 요약해줘"에는 어떤 스킬이 쓰일까요?</summary>
+      <p><code>hwp</code> 스킬입니다. kordoc으로 HWP를 Markdown으로 변환해 읽습니다.</p>
+    </details>
+    <details>
+      <summary>Q2. 표 안의 "2025"가 일괄 치환으로 안 바뀌었습니다. 왜 그럴까요?</summary>
+      <p><code>replace-all</code>은 본문 문단만 바꾸기 때문입니다. 표 셀은 <code>set-cell-text</code>로 셀을 지정해 고쳐야 합니다.</p>
+    </details>
+    <details>
+      <summary>Q3. 전역 설치와 프로젝트 설치를 가르는 옵션은?</summary>
       <p><code>-g</code>입니다. 붙이면 <code>~/.claude/skills</code>에, 빼면 현재 프로젝트의 <code>.claude/skills</code>에 설치됩니다.</p>
     </details>
     <details>
-      <summary>Q2. <code>.claude/skills</code>만 지우면 정리가 끝날까요?</summary>
+      <summary>Q4. <code>.claude/skills</code>만 지우면 정리가 끝날까요?</summary>
       <p>아니요. 그 안은 링크일 뿐이고, 원본(<code>.agents/skills</code>), 복사본(<code>agent/skills</code>), <code>skills-lock.json</code>도 함께 정리해야 합니다.</p>
     </details>
 
     <div class="box tip">
-      <div class="box-title">마무리</div>
-      <p>오늘 네 프로젝트의 공통점은 짧은 요청, 계획 먼저, 결과 확인, 중요한 결정은 사람이 내린다는 것이었습니다. 여러분의 프로젝트에서도 이 네 가지를 기억해 보세요.</p>
+      <div class="box-title">실습 과제</div>
+      <p>최근에 받은 한글 양식 하나를 프로젝트 폴더에 넣고 "이 양식에서 채워야 할 칸을 표로 정리하고, 내가 불러주는 내용으로 채워서 새 파일로 저장해줘"라고 요청해 보세요.</p>
     </div>
 
     <div class="pager">
